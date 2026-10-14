@@ -51,7 +51,7 @@ nTx = cfg.nTx;
 ids      = cellstr(compose('UAS%04d', (1:nTx)'));
 dist0    = cfg.distRange(1) + diff(cfg.distRange) * rand(nTx, 1);
 speed    = cfg.speedMax * (2*rand(nTx, 1) - 1);          % radial, m/s (+ = moving away)
-interval = cfg.(1) + diff(cfg.intervalRange) * rand(nTx, 1);
+interval = cfg.intervalRange(1) + diff(cfg.intervalRange) * rand(nTx, 1);
 phase    = interval .* rand(nTx, 1);                      % time of first beacon
 cfoHz    = cfg.cfoPpmMax * 1e-6 * cfg.carrierFreq * (2*rand(nTx, 1) - 1);
 

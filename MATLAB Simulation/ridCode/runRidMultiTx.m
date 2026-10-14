@@ -58,18 +58,18 @@ legend('Decoded', 'Missed, overlapped another packet', 'Missed', 'Location', 'ea
 runSweep    = true;
 sweepField  = 'nTx';                % any scalar field of cfg
 sweepValues = [1 5 10 25 50];
-nTrials     = 3;                    % independent draws per value
+N     = 3;                    % independent draws per value
 sweepCfg    = cfg;
 sweepCfg.simTime = 5;               % shorter than part 1 to keep the sweep quick
 
 if runSweep
     nV = numel(sweepValues);
-    detPct = zeros(nV, nTrials);
-    decPct = zeros(nV, nTrials);
-    colPct = zeros(nV, nTrials);
+    detPct = zeros(nV, N);
+    decPct = zeros(nV, N);
+    colPct = zeros(nV, N);
 
     for vi = 1:nV
-        for tr = 1:nTrials
+        for tr = 1:N
             c = sweepCfg;
             c.(sweepField) = sweepValues(vi);
             c.seed = cfg.seed + 1000*vi + tr;
@@ -88,5 +88,5 @@ if runSweep
     grid on;
     xlabel(sweepField); ylabel('%');
     legend('Transmitters detected', 'Packets decoded', 'Packets overlapping another', 'Location', 'best');
-    title(sprintf('Mean over %d trials', nTrials));
+    title(sprintf('Mean over %d trials', N));
 end

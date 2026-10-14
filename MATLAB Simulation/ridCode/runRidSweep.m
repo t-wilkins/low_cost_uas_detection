@@ -1,7 +1,7 @@
 %% runRidSweep.m
 % Sensitivity sweep over distance and CFO for the ASTM F3411 Remote ID
 % over WiFi beacon link. Builds the waveform once, then for each
-% (distance, CFO) grid point runs nTrials independent channel/noise
+% (distance, CFO) grid point runs N independent channel/noise
 % realizations through applyRidChannel + receiveRidBeacon and records
 % packet detection rate, FCS decode rate, ID match rate, and mean BER.
 
@@ -10,7 +10,7 @@ clear; close all;
 %% Sweep grid - edit these
 distanceGrid = 100:50:800;        % metres
 cfoGrid      = [0 250 500 1000 2000];    % Hz
-nTrials      = 200;                       % independent noise/channel draws per grid point
+N      = 200;                       % independent noise/channel draws per grid point
 
 %% Fixed transmit configuration (built once - payload doesn't depend on channel)
 tx = buildRidBeaconWaveform(struct('uasID', 'N.123456'));
@@ -29,7 +29,7 @@ for di = 1:nD
     for ci = 1:nC
         nDetected = 0; nDecoded = 0; nIDMatch = 0; berAccum = 0; berCount = 0;
 
-        for t = 1:nTrials
+        for t = 1:N
             chanOpts = struct( ...
                 'distance',     distanceGrid(di), ...
                 'cfoHz',        cfoGrid(ci), ...
@@ -48,9 +48,9 @@ for di = 1:nD
             end
         end
 
-        detectRate(di, ci)  = nDetected / nTrials;
-        decodeRate(di, ci)  = nDecoded  / nTrials;
-        idMatchRate(di, ci) = nIDMatch  / nTrials;
+        detectRate(di, ci)  = nDetected / N;
+        decodeRate(di, ci)  = nDecoded  / N;
+        idMatchRate(di, ci) = nIDMatch  / N;
         meanBER(di, ci)     = berAccum / max(berCount, 1);
     end
     fprintf('Distance %g m done.\n', distanceGrid(di));
@@ -87,4 +87,4 @@ subplot(2,2,4);
 imagesc(cfoGrid, distanceGrid, log10(meanBER + eps)); set(gca,'YDir','normal');
 colorbar; xlabel('CFO (Hz)'); ylabel('Distance (m)'); title('log_{10}(Mean BER)');
 
-sgtitle(sprintf('RID Beacon Link Sensitivity (%d trials/point)', nTrials));
+sgtitle(sprintf('RID Beacon Link Sensitivity (%d trials/point)', N));
