@@ -13,6 +13,7 @@ Remote ID (ASTM F3411-22a) requires drones to broadcast their identity and statu
 **Current stage:** 
  - Have developed end-to-end simulation of the broadcast and reception of a single F3411 Basic ID packet, printing and plotting the message and waveform as it moves through the signal chain
  - Have used Claude to split simulation into several different function files and develop a multiTx simulation. This code is temporary and was just used as a reference. Currently developing personal simulation code
+
 **Planned:**
  - Using AI generated code as a reference, split functions into different modular files
  - Integrate a more representative, outdoor, drone-to-ground, wireless channel
