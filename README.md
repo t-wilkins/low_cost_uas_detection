@@ -12,7 +12,8 @@ Remote ID (ASTM F3411-22a) requires drones to broadcast their identity and statu
 
 **Current stage:** 
  - Have developed end-to-end simulation of the broadcast and reception of a single F3411 Basic ID packet, printing and plotting the message and waveform as it moves through the signal chain
- - Have used Claude to split simulation into several different function files and develop a multiTx simulation. This code is temporary and was just used as a reference. Currently developing personal simulation code
+ - Have split Tx-Rx chain functions into files and defined parameters to be passed through the simulation.
+ - Developing scenario with multiple transmitters and receivers, operating over a fixed simulation time period within a defined 3D-space
 
 **Planned:**
  - Using AI generated code as a reference, split functions into different modular files
@@ -33,19 +34,14 @@ Remote ID (ASTM F3411-22a) requires drones to broadcast their identity and statu
 
 ```
 MATLAB Simulation/
-├── ClaudeRefCode/               # AI generated modular function library - proof of concept and reference
-│   ├── ridEncodeMessage.m       # Encode 25-byte F3411 Basic ID message
-│   ├── ridEncodeMessagePack.m   # Wrap messages in F3411 Message Pack
-│   ├── ridDecodeMessagePack.m   # Unpack received Message Pack
-│   ├── ridDecodeBasicID.m       # Decode Basic ID back to struct
-│   ├── ridHex.m                 # uint8 → hex string helper
-│   ├── buildRidBeaconWaveform.m # Full TX chain: F3411 message → MAC beacon → non-HT OFDM waveform
-│   ├── applyRidChannel.m        # Channel stage: TGn Model-D, path loss, CFO, AWGN
-│   ├── receiveRidBeacon.m       # Full RX chain: detect, CFO correct, equalise, decode
-│   ├── ridBeaconDemo.m          # Single-link demo with diagnostic plots
-│   ├── runRidSweep.m            # 2-D sensitivity sweep (distance × CFO)
-│   ├── ridSimulateScenario.m    # Multi-transmitter scenario engine
-│   └── runRidMultiTx.m          # Multi-Tx driver: single run + nTx sweep
+├── Code/                        # Modular function library 
+│   ├── encodeRidMsg.m           # Encode F3411 Message Pack
+│   ├── decodeRidMsg.m           # Unpack received Message Pack
+│   ├── buildBeaconWaveform.m    # Takes F3411 message → MAC beacon → non-HT OFDM waveform
+│   ├── ridTransmitter.m         # Top-level Tx function: encodes msg and builds waveform before scaling Tx power and applying CFO
+│   ├── applyChannel.m           # Channel stage: Applies geometrically accurate channel - LOS only for now, plans to add multipath later
+│   ├── ridReceiver.m            # Top-level Rx function: applies Rx CFO, detects, RSSI measurement, CFO corrects, noise measurement, equalises, decodes
+│   ├── ridDemo.m                # Single-link demo with diagnostic plots
 ├── droneIdSimulation.m          # Original prototype to be developed
 ```
 
