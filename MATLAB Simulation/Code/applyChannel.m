@@ -1,9 +1,10 @@
-function chnOut = applyChannel(txWaveform, txCfg, rxCfg)
+function chnOut = applyChannel(txWaveform, txCfg, rxCfg, chCfg)
 % APPLYCHANNEL  Propagation channel from one transmitter to one receive
-% antenna: delay, path loss, Doppler and thermal noise. Currently free-space
-% line of sight only; multipath to be added.
+% antenna: delay, path loss, shadowing, Doppler and thermal noise.
+% Log-distance path loss, line of sight; multipath to be added.
 %
 %   chnOut = applyChannel(txWaveform, txCfg, rxCfg)
+%   chnOut = applyChannel(txWaveform, txCfg, rxCfg, chCfg)
 %
 %   Inputs
 %     txWaveform : baseband waveform from ridTransmitter (sqrt(W) scale,
@@ -20,6 +21,14 @@ function chnOut = applyChannel(txWaveform, txCfg, rxCfg)
 %                    nfDb = 4.5          noise figure (dB), ESP32 datasheet
 %                    antGainDb = 0       receive antenna gain (dBi)
 %                    visualise = 1       plot the channel output signal
+%     chCfg      : channel struct (optional)
+%                    n = 2               path loss exponent (2 = free space)
+%                    d0 = 1              reference distance (m), free space up to d0
+%                    shadowSigmaDb = 0   log-normal shadowing std (dB), drawn per
+%                                        call when shadowDb is not given
+%                    shadowDb            fixed shadowing loss (dB), e.g. one draw
+%                                        per link held for a whole scenario;
+%                                        overrides shadowSigmaDb
 %
 %   Fixed: fs = 20 MHz, T0 = 290 K,
 %   20 us of noise before the frame and after it.
@@ -32,15 +41,18 @@ function chnOut = applyChannel(txWaveform, txCfg, rxCfg)
 %     dist       : transmitter-receiver distance (m)
 %     delay      : propagation delay (s)
 %     fD         : Doppler shift (Hz), positive when closing
-%     pathGainDb : free-space path gain incl. antenna gains (dB)
+%     pathGainDb : path gain incl. shadowing and antenna gains (dB)
+%     shadowDb   : shadowing loss applied (dB), positive = extra loss
 %     tStart     : absolute time of sample 1 (s)
 %     toa        : absolute true time of arrival of the frame start (s)
 %
 %   When rxCfg.visualise is true, plots the channel output signal's in-phase
 %   and quadrature components.
 %
-%   Model: Friis free-space amplitude lambda/(4*pi*d), fractional delay
-%   applied in the frequency domain, carrier phase exp(-j*2*pi*fc*tau),
+%   Model: log-distance path loss
+%     PL(d) = 20*log10(4*pi*d0/lambda) + 10*n*log10(d/d0) + shadowDb  (dB),
+%   i.e. Friis free space to d0 then exponent n; n = 2 with no shadowing is
+%   exactly Friis for any d0. Fractional delay applied in the frequency domain, carrier phase exp(-j*2*pi*fc*tau),
 %   Doppler as a phase ramp. Noise N = k*T0*B*F with B = fs, i.e. over the
 %   whole simulated band, so the per-subcarrier SNR after OFDM demodulation
 %   is correct. The delay change within one frame is neglected (~6 mm at
@@ -50,6 +62,7 @@ arguments
     txWaveform (:,1) double {mustBeNonempty}
     txCfg      (1,1) struct
     rxCfg      (1,1) struct {mustHavePos}
+    chCfg      (1,1) struct = struct()
 end
 
 %% Constants
@@ -59,7 +72,7 @@ kB   = physconst('Boltzmann');
 T0   = 290;
 tPad = 20e-6;                           % noise before and after the frame
 
-[txCfg, rxCfg] = applyDefaults(txCfg, rxCfg);
+[txCfg, rxCfg, chCfg] = applyDefaults(txCfg, rxCfg, chCfg);
 fc = txCfg.fc;                          % carrier, defined by the transmitter
 
 %% Geometry
@@ -77,8 +90,16 @@ tau    = dist / c;
 lambda = c / fc;
 fD     = dot(vTx - vRx, u) / lambda;    % positive when closing
 
-%% Path gain (Friis)
-gainAmp = lambda / (4*pi*dist) * 10^((txCfg.antGainDb + rxCfg.antGainDb)/20);
+%% Path gain (log-distance + shadowing)
+if isfield(chCfg, 'shadowDb')
+    shadowDb = chCfg.shadowDb;
+elseif chCfg.shadowSigmaDb > 0
+    shadowDb = chCfg.shadowSigmaDb * randn;
+else
+    shadowDb = 0;                       % no draw, keeps the noise sequence unchanged
+end
+plDb    = 20*log10(4*pi*chCfg.d0/lambda) + 10*chCfg.n*log10(dist/chCfg.d0) + shadowDb;
+gainAmp = 10^((txCfg.antGainDb + rxCfg.antGainDb - plDb)/20);
 
 %% Window: [pre-roll | delay | frame | tail], sample nPad+1 = transmit time
 N    = numel(txWaveform);
@@ -112,6 +133,7 @@ chnOut.dist       = dist;
 chnOut.delay      = tau;
 chnOut.fD         = fD;
 chnOut.pathGainDb = 20*log10(gainAmp);
+chnOut.shadowDb   = shadowDb;
 chnOut.tStart     = txCfg.t - tPad;
 chnOut.toa        = txCfg.t + tau;
 
@@ -129,10 +151,15 @@ end
 
 % -------------------------------------------------------------------------
 
-function [txCfg, rxCfg] = applyDefaults(txCfg, rxCfg)
+function [txCfg, rxCfg, chCfg] = applyDefaults(txCfg, rxCfg, chCfg)
     txDef = struct('fc', 2.437e9, 'pos', [100 100 10], 'heading', 0, 'speed', 0, ...
                    'vertSpeed', 0, 't', 0, 'antGainDb', 0, 'visualise', 1);
     rxDef = struct('vel', [0 0 0], 'nfDb', 4.5, 'antGainDb', 0, 'visualise', 1);
+    chDef = struct('n', 2, 'd0', 1, 'shadowSigmaDb', 0);   % shadowDb has no default
+    f = fieldnames(chDef);
+    for i = 1:numel(f)
+        if ~isfield(chCfg, f{i}), chCfg.(f{i}) = chDef.(f{i}); end
+    end
     f = fieldnames(txDef);
     for i = 1:numel(f)
         if ~isfield(txCfg, f{i}), txCfg.(f{i}) = txDef.(f{i}); end
