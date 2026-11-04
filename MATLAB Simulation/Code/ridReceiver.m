@@ -73,7 +73,8 @@ end
 
 %% RSSI: mean power over the L-STF (waveform is in sqrt(W))
 lstf          = rx(pktOffset + (ind.LSTF(1):ind.LSTF(2)));
-rxOut.rssiDbm = 10*log10(mean(abs(lstf).^2)) + 30;
+% Rounded to integer values as ESP32 reports
+rxOut.rssiDbm = round(10*log10(mean(abs(lstf).^2)) + 30);
 
 %% Coarse CFO (L-STF)
 lstf      = rx(pktOffset + (ind.LSTF(1):ind.LSTF(2)));
