@@ -24,7 +24,8 @@ function rxOut = ridReceiver(rxWaveform, rxCfg)
 %     cfoEst      : estimated CFO, coarse + fine (Hz): transmitter CFO +
 %                   Doppler - receiver CFO; NaN if not detected
 %     decoded     : true if L-SIG, FCS and Remote ID pack all decoded
-%     payload     : struct from decodeRidMsg plus .msgCounter and .srcMAC;
+%     payload     : struct from decodeRidMsg plus .msgCounter, .srcMAC and
+%                   .macTimestamp (beacon TSF field, us);
 %                   empty if not decoded
 %
 %   No gain control is applied: the waveform is floating point with no ADC
@@ -141,6 +142,7 @@ if ~ok
 end
 payload.msgCounter = counter;
 payload.srcMAC     = cfgMAC.Address2;
+payload.macTimestamp = double(cfgMAC.ManagementConfig.Timestamp);   % uint64 us -> double
 
 rxOut.decoded = true;
 rxOut.payload = payload;

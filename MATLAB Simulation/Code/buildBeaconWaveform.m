@@ -12,6 +12,12 @@ function tx = buildBeaconWaveform(msg, cfg)
 %        msgCounter     : vendor IE counter, written mod 256 (and 802.11 sequence
 %                         number mod 4096). Use the same counter as encodeRidMsg.
 %        srcMAC         : 12 hex characters, transmitter address and BSSID
+%        t              : transmit time (s), default 0. Written to the beacon
+%                         Timestamp field (TSF) as floor(t*1e6) us: the TSF is a
+%                         1 us counter, here the shared simulation clock (no
+%                         per-drone offset or drift), stamped at frame start.
+%                         802.11 stamps it when the data symbol carrying the
+%                         field is sent (~52 us into this frame) plus PHY delay.
 %
 %   The waveform is complex baseband at 20 MHz; the carrier (channel 6,
 %   2.437 GHz, as in the ESP32 code) is applied in the top level Tx function.
@@ -30,7 +36,8 @@ function tx = buildBeaconWaveform(msg, cfg)
 if nargin < 1 || isempty(cfg), cfg = struct(); end
 def = struct('msgCounter', 0, ...
              'srcMAC', '0A0000000001', ...
-             'beaconInterval', 500);
+             'beaconInterval', 500, ...
+             't', 0);
 f = fieldnames(def);
 for i = 1:numel(f)
     if ~isfield(cfg, f{i}), cfg.(f{i}) = def.(f{i}); end
@@ -41,6 +48,8 @@ mgmt = wlanMACManagementConfig;
 mgmt.FrameType      = 'Beacon';
 mgmt.BeaconInterval = cfg.beaconInterval;
 mgmt.SSID           = 'UAS_ID_OPEN';
+mgmt.Timestamp      = floor(round(cfg.t*1e9) / 1e3);  % TSF (us); round to ns first so
+                                                      % an exact us is not floored down
 
 ridIE = [uint8([250 11 188 13 mod(cfg.msgCounter, 256)]), msg]; % FA 0B BC 0D counter pack
 mgmt  = addIE(mgmt, 221, reshape(dec2hex(ridIE, 2).', 1, []));

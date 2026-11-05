@@ -9,7 +9,7 @@ function chnOut = applyChannel(txWaveform, txCfg, rxCfg, chCfg)
 %   Inputs
 %     txWaveform : baseband waveform from ridTransmitter (sqrt(W) scale,
 %                  transmit power already applied), sampled at 20 MHz
-%     txCfg      : same struct as ridTransmitter. Uses
+%     txCfg      : same struct as ridTransmitter. Defaults:
 %                    fc = 2.437e9        carrier frequency (Hz)
 %                    pos = [100 100 10]  ENU position (m)
 %                    heading = 0, speed = 0, vertSpeed = 0  (velocity)

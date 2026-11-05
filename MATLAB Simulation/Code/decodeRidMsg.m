@@ -77,6 +77,7 @@ function p = decodeLocation(p, msg, origin)
     p.lon    = double(typecast(msg(10:13), 'int32')) * 1e-7;
     p.altGeo = decodeAlt(msg(16:17));
     p.height = decodeAlt(msg(18:19));
+    p.lla = [p.lat; p.lon; p.altGeo];
     
     p.timestamp = double(typecast(msg(22:23), 'uint16')) / 10;
     

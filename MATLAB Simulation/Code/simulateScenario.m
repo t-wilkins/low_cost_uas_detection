@@ -67,13 +67,6 @@ nRx   = numel(nodes.rx);
 rxCfgs = struct('pos', {nodes.rx.pos}, 'vel', [0 0 0], 'nfDb', {nodes.rx.nfDb}, ...
                 'cfo', {nodes.rx.cfo}, 'origin', scnCfg.origin, 'visualise', 0);
 
-% Longest propagation delay, to check that frames from different drones
-% cannot overlap at any receiver
-txPos    = vertcat(nodes.tx.pos);
-rxPos    = vertcat(nodes.rx.pos);
-maxDelay = max(vecnorm(permute(txPos, [1 3 2]) - permute(rxPos, [3 1 2]), 2, 3), [], 'all') ...
-           / physconst('LightSpeed');
-
 %% 3. Schedule
 [schedule, t0Ticks] = buildSchedule(nTx, periodTicks, minSepTicks, simTicks);
 for i = 1:nTx
@@ -82,6 +75,7 @@ end
 nEv = height(schedule);
 
 %% 5. Simulation loop
+% Results log
 rows = cell(nEv*nRx, 1);
 r = 0;
 for e = 1:nEv
@@ -99,23 +93,28 @@ for e = 1:nEv
 
     % b. one transmission per beacon
     tx = ridTransmitter(txCfg);
-    if tx.duration + maxDelay > scnCfg.minSep
-        error('simulateScenario:minSep', ...
-              'Frame (%.0f us) plus max delay (%.1f us) exceeds minSep (%.0f us).', ...
-              tx.duration*1e6, maxDelay*1e6, scnCfg.minSep*1e6);
-    end
 
     % c. each receiver: own channel realisation and receive window
     nDec = 0;
+    rxPayloads = cell(1, nRx);                 % payload structs, [] if not decoded
     for m = 1:nRx
         chCfg = scnCfg.chCfg;
         chCfg.shadowDb = nodes.shadowDb(i, m);
         chn = applyChannel(tx.waveform, txCfg, rxCfgs(m), chCfg);
         rx  = ridReceiver(chn.waveform, rxCfgs(m));
+        rxPayloads{m} = rx.payload;
 
         r = r + 1;
         rows{r} = logRow(e, schedule(e,:), m, txCfg, rxCfgs(m), chn, rx);
         nDec = nDec + rx.decoded;
+    end
+
+    % d. every receiver that decoded this beacon must recover the same payload
+    % (isequaln: NaN fields, e.g. no Basic ID in pack B, count as equal)
+    decPayloads = rxPayloads(~cellfun(@isempty, rxPayloads));
+    if numel(decPayloads) > 1 && ~isequaln(decPayloads{:})
+        error('simulateScenario:payloadMismatch', ...
+              'Beacon %d (drone %d): receivers decoded different payloads.', e, i);
     end
 
     if scnCfg.verbose
@@ -145,12 +144,12 @@ function cfg = applyDefaults(cfg)
                  'simTime', 10, ...
                  'fs', 20e6, ...
                  'fc', 2.437e9, ...
-                 'origin', [53.3438 -6.2546 60], ...
+                 'origin', [53.0105 -7.1555 88], ...
                  'chCfg', struct(), ...
-                 'txPos', [500 1200 50; 1500 300 80; 5000 4000 120], ...
+                 'txPos', [-400 600 50; 1000 -1500 80; -5000 -4000 120], ...
                  'txPowerDbm', 20, ...
                  'maxTxCfoPpm', 10, ...
-                 'rxPos', [0 0 2; 2000 0 2; 2000 2000 2; 0 2000 2], ...
+                 'rxPos', [0 0 2; -2000 0 2; -2000 -2000 2; 0 -2000 2], ...
                  'nfDb', 4.5, ...
                  'maxRxCfoPpm', 10, ...
                  'beaconPeriod', 0.5, ...
@@ -257,7 +256,7 @@ function s = getTxState(txNode, t) %#ok<INUSD>
 end
 
 function row = logRow(e, ev, m, txCfg, rxCfg, chn, rx)
-    % One log row per (beacon, receiver): IDs, truth, estimates
+    % One log row per (received beacon): IDs, truth, estimates
     row.eventIdx   = e;
     row.tTick      = ev.tTick;
     row.tS         = txCfg.t;
@@ -277,16 +276,20 @@ function row = logRow(e, ev, m, txCfg, rxCfg, chn, rx)
     row.decoded   = rx.decoded;
     row.rssiDbm   = rx.rssiDbm;
     row.cfoEst    = rx.cfoEst;
-    row.cfoErr    = rx.cfoEst - row.trueCFO;                    % NaN if not detected
-    row.toaEst    = chn.tStart + rx.startOffset / chn.fs;       % absolute time
     row.decPos    = nan(1, 3);
+    row.decLla    = nan(1, 3);
     row.posErr    = nan(1, 3);
     row.decUasID  = "";
     row.decSrcMAC = "";
+    row.timestamp = nan;
+    row.macTimestamp = nan;                    % beacon TSF (us)
     if rx.decoded
         row.decPos    = rx.payload.pos(:).';
+        row.decLla    = rx.payload.lla(:).';
         row.posErr    = row.decPos - row.truePos;
-        row.decUasID  = string(rx.payload.uasID);               % "" for pack B (no Basic ID)
+        row.decUasID  = string(rx.payload.uasID); % "" for pack B (no Basic ID)
         row.decSrcMAC = string(rx.payload.srcMAC);
+        row.timestamp = rx.payload.timestamp;
+        row.macTimestamp = rx.payload.macTimestamp;
     end
 end
