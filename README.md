@@ -2,7 +2,7 @@
 
 MATLAB simulation of ASTM F3411 Remote ID drone beacons transmitted over IEEE 802.11 (Wi-Fi) Beacon frames, building toward a distributed MIMO sensing system for passive UAS detection and localisation.
 
-**MAI Final Year Project — Electronic Engineering, Trinity College Dublin**
+**MAI Final Year Project, Electronic Engineering, Trinity College Dublin**
 
 ---
 
